@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- IMPORTANT: keep viewport + safe area -->
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Tarout Bay Fish Kill — Hydrodynamic Modeling Story</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -23,21 +24,48 @@
       --shadowSoft: 0 18px 70px rgba(0,0,0,.52);
       --radius: 22px;
 
-      --title: clamp(20px, 2.0vw, 32px);
-      --h1: clamp(22px, 2.6vw, 38px);
+      --title: clamp(18px, 2.0vw, 32px);
+      --h1: clamp(20px, 2.6vw, 38px);
       --lead: clamp(14px, 1.2vw, 18px);
       --body: clamp(13.5px, 1.1vw, 16px);
       --small: 12.4px;
 
       --safeTop: 0px; /* auto via JS */
+      --gutter: 16px;
     }
 
     *{box-sizing:border-box}
-    html,body{height:100%;margin:0;overflow:hidden;background:#060811;color:var(--fg);
+    html,body{
+      height:100%;
+      margin:0;
+      background:#060811;
+      color:var(--fg);
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,"Noto Sans",sans-serif;
     }
 
-    .stage{position:relative;height:100vh;width:100vw;overflow:hidden;background:#060811;}
+    /* Desktop: keep locked full-screen feel */
+    body.isDesktopLocked{
+      overflow:hidden;
+    }
+
+    /* Mobile/tablet: allow natural scroll so nothing gets cut */
+    body.isMobileScroll{
+      overflow:auto;
+      -webkit-overflow-scrolling:touch;
+    }
+
+    /* Use dynamic viewport where supported (fixes iOS Safari bar issue) */
+    .stage{
+      position:relative;
+      width:100%;
+      height:100vh; /* fallback */
+      overflow:hidden;
+      background:#060811;
+    }
+    @supports (height: 100dvh){
+      .stage{ height:100dvh; }
+    }
+
     #map{position:absolute;inset:0;z-index:0;filter:saturate(1.05) contrast(1.05);}
     .vignette{
       position:absolute;inset:0;z-index:1;
@@ -48,7 +76,19 @@
     }
 
     /* ---------- HEADER ---------- */
-    .topbar{position:absolute;left:16px;right:16px;top:16px;z-index:3;}
+    .topbar{
+      position:sticky; /* important for mobile scroll */
+      top:0;
+      left:0; right:0;
+      z-index:5;
+      padding:
+        calc(env(safe-area-inset-top, 0px) + 12px)
+        calc(env(safe-area-inset-right, 0px) + var(--gutter))
+        12px
+        calc(env(safe-area-inset-left, 0px) + var(--gutter));
+      pointer-events:auto;
+    }
+
     .header{
       width:100%;
       display:grid;
@@ -118,6 +158,7 @@
     .btn:hover{background:rgba(255,255,255,.12);border-color:rgba(245,248,255,.34);box-shadow:0 14px 55px rgba(0,0,0,.34);}
     .btn:active{transform:scale(.98);}
     .btn.primary{border-color:rgba(143,211,255,.60);background:rgba(143,211,255,.20);}
+
     .pill{
       font-size:13px;color:rgba(245,248,255,.92);
       padding:9px 12px;border-radius:999px;
@@ -127,14 +168,16 @@
       font-weight:950;white-space:nowrap;
     }
 
+    /* Responsive header */
     @media (max-width: 980px){
       .header{grid-template-columns: 180px 1fr auto;}
       .sub{display:none;}
     }
     @media (max-width: 760px){
-      html,body{overflow:auto;}
-      .stage{height:auto; min-height:100vh;}
-      .header{grid-template-columns: 1fr; text-align:center;}
+      .header{
+        grid-template-columns: 1fr;
+        text-align:center;
+      }
       .brandLeft{justify-content:center;}
       .controls{justify-content:center;}
     }
@@ -142,12 +185,32 @@
     /* ---------- SCENE AREA ---------- */
     .layout{
       position:absolute;
-      left:16px; right:16px;
-      top:calc(var(--safeTop) + 12px);
-      bottom:16px;
+      left: calc(env(safe-area-inset-left, 0px) + var(--gutter));
+      right: calc(env(safe-area-inset-right, 0px) + var(--gutter));
+      top: calc(var(--safeTop) + 8px);
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
       z-index:3;
       display:flex;
       min-height:0;
+    }
+
+    /* On mobile scroll mode, make layout flow naturally under header */
+    body.isMobileScroll .layout{
+      position:relative;
+      top:auto; bottom:auto;
+      left:auto; right:auto;
+      margin: 0 var(--gutter) calc(env(safe-area-inset-bottom, 0px) + 14px);
+      padding-bottom: 6px;
+      height:auto;
+      display:block;
+    }
+    body.isMobileScroll .stage{
+      overflow:visible; /* allow layout to extend */
+      height:auto;
+      min-height:100vh;
+    }
+    @supports (min-height: 100dvh){
+      body.isMobileScroll .stage{ min-height:100dvh; }
     }
 
     .scene{display:none;width:100%;min-height:0;}
@@ -159,6 +222,8 @@
       gap:14px;
       min-height:0;
     }
+
+    /* Desktop grids */
     .tileGrid.three{ grid-template-columns: 0.72fr 1.14fr 1.14fr; }
     .tileGrid.two{ grid-template-columns: 0.72fr 2.28fr; }
 
@@ -177,9 +242,12 @@
 
     /* LEFT TEXT PANEL */
     .textPanel{padding:16px;gap:12px;overflow:auto;}
+    body.isMobileScroll .textPanel{overflow:visible;} /* avoid nested scroll on mobile */
+
     .textPanel::-webkit-scrollbar{width:10px}
     .textPanel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:999px;border:1px solid rgba(255,255,255,.10)}
     .textPanel::-webkit-scrollbar-track{background:rgba(0,0,0,.18)}
+
     .badgeRow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
     .badge{
       font-size:12px;font-weight:1000;padding:7px 11px;border-radius:999px;
@@ -191,7 +259,6 @@
     .h1{font-size:var(--h1);font-weight:1100;line-height:1.06;margin:0;text-shadow:0 2px 18px rgba(0,0,0,.55);}
     .lead{margin:0;font-size:var(--lead);line-height:1.58;color:rgba(245,248,255,.92);}
 
-    /* BULLETS */
     .bullets{margin:0;padding:0;list-style:none;display:grid;gap:10px;}
     .bullets li{
       display:flex;gap:12px;align-items:flex-start;
@@ -237,11 +304,18 @@
       overflow:hidden;
       padding:10px;
     }
+
+    /* Key: ensure media has usable height on small screens */
+    body.isMobileScroll .mediaFrame{
+      min-height: 220px;
+    }
+
     .mediaFrame img,
     .mediaFrame video{
+      width:100%;
+      height:100%;
       max-width:100%;
       max-height:100%;
-      width:auto;height:auto;
       object-fit:contain;
       object-position:center;
       display:block;
@@ -288,7 +362,6 @@
       white-space:nowrap;
     }
 
-    /* Header progress */
     .miniProg{display:flex;gap:8px;align-items:center;}
     .barMini{
       width:140px;height:10px;border-radius:999px;
@@ -301,6 +374,30 @@
       background:linear-gradient(90deg, rgba(143,211,255,.95), rgba(107,255,176,.95));
       border-radius:999px;
       transition:width 120ms linear;
+    }
+
+    /* ---------- Responsive grid rules (MAIN FIX) ---------- */
+    @media (max-width: 1100px){
+      .tileGrid.three{ grid-template-columns: 0.86fr 1.07fr 1.07fr; }
+      .tileGrid.two{ grid-template-columns: 0.86fr 2.14fr; }
+    }
+
+    @media (max-width: 900px){
+      /* 3 cols => 2 cols */
+      .tileGrid.three{ grid-template-columns: 1fr 1fr; }
+      /* Put text full-width on top for readability */
+      .tileGrid.three > .textPanel{ grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 680px){
+      /* 2 cols => 1 col */
+      .tileGrid.two{ grid-template-columns: 1fr; }
+      /* 3 cols => 1 col */
+      .tileGrid.three{ grid-template-columns: 1fr; }
+      /* Make caps not clipped */
+      .cap{ max-height:none; overflow:visible; }
+      /* Reduce gutters */
+      :root{ --gutter: 12px; }
     }
   </style>
 </head>
@@ -468,7 +565,7 @@
         </div>
       </section>
 
-      <!-- SCENE 4 (MERGED: salinity+currents video LEFT, backtracking video RIGHT) -->
+      <!-- SCENE 4 -->
       <section class="scene" id="scene4" data-step="4" data-videos="scene4vidLeft,scene4vidRight">
         <div class="tileGrid three">
           <div class="panel textPanel">
@@ -501,7 +598,6 @@
 
           <div class="panel mediaPanel">
             <div class="mediaFrame">
-              <!-- LEFT: salinity changes + currents -->
               <video id="scene4vidLeft" src="scene_4_right.mp4" controls playsinline muted preload="metadata"></video>
             </div>
             <div class="cap">Left: salinity variability + currents (exchange and transport context).</div>
@@ -509,7 +605,6 @@
 
           <div class="panel mediaPanel">
             <div class="mediaFrame">
-              <!-- RIGHT: backward particle tracking -->
               <video id="scene4vidRight" src="scene5_right.mp4" controls playsinline muted preload="metadata"></video>
             </div>
             <div class="cap">Right: backward particle tracking showing convergence corridors toward Saihat and Ras Tanura.</div>
@@ -517,7 +612,7 @@
         </div>
       </section>
 
-      <!-- SCENE 5 (was Scene 6) -->
+      <!-- SCENE 5 -->
       <section class="scene" id="scene5" data-step="5" data-duration="11000">
         <div class="tileGrid three">
           <div class="panel textPanel">
@@ -565,7 +660,16 @@
   </div>
 
   <script>
-    // ---------- Auto safeTop so layout always fits at 100% zoom (Chrome/Edge) ----------
+    // --- detect mobile/tablet and switch to scroll layout ---
+    (function setLayoutMode(){
+      const isTouch = matchMedia("(pointer: coarse)").matches;
+      const isNarrow = matchMedia("(max-width: 760px)").matches;
+      const mobile = isTouch || isNarrow;
+      document.body.classList.toggle("isMobileScroll", mobile);
+      document.body.classList.toggle("isDesktopLocked", !mobile);
+    })();
+
+    // ---------- Auto safeTop (sticky header height) ----------
     (function autoSafeTop(){
       const root = document.documentElement;
       const topbar = document.querySelector(".topbar");
@@ -574,7 +678,8 @@
 
       function update(){
         const h = topbar.getBoundingClientRect().height;
-        root.style.setProperty("--safeTop", `${Math.ceil(16 + h)}px`);
+        // safeTop includes topbar padding already; layout starts after it
+        root.style.setProperty("--safeTop", `${Math.ceil(h)}px`);
       }
       update();
       window.addEventListener("resize", update, { passive:true });
@@ -586,10 +691,11 @@
       }
     })();
 
-    // ---------- Leaflet background map (locked) ----------
+    // ---------- Leaflet background map ----------
     const map = L.map("map", {
-      zoomControl:false, attributionControl:false, dragging:false,
-      scrollWheelZoom:false, doubleClickZoom:false, boxZoom:false, keyboard:false, tap:false
+      zoomControl:false, attributionControl:false,
+      dragging:false, scrollWheelZoom:false, doubleClickZoom:false,
+      boxZoom:false, keyboard:false, tap:false
     }).setView([26.25, 50.12], 10);
 
     L.tileLayer(
@@ -672,7 +778,7 @@
 
     function clearAllOverlays(){ Object.values(layers).forEach(g => g.clearLayers()); }
 
-    // ---------- Particle animation (now runs in merged Scene 4) ----------
+    // ---------- Particle animation ----------
     const canvas = document.getElementById("particleCanvas");
     const ctx = canvas.getContext("2d");
     let particleRAF = null;
@@ -807,9 +913,7 @@
     }
 
     function applyMapForScene(step){
-      // particles only in merged scene 4 now
       if(step !== 4) stopParticles();
-
       clearAllOverlays();
 
       if(step === 1){
@@ -852,9 +956,14 @@
       scenes.forEach(s => s.classList.toggle("active", Number(s.dataset.step) === step));
       updateTopText(step);
       applyMapForScene(step);
+      // In mobile scroll mode, ensure user sees the top of the active scene
+      if(document.body.classList.contains("isMobileScroll")){
+        const active = scenes.find(s => s.classList.contains("active"));
+        if(active) active.scrollIntoView({ behavior:"smooth", block:"start" });
+      }
     }
 
-    // ---------- Autorun engine (supports multiple videos per scene) ----------
+    // ---------- Autorun ----------
     const playBtn = document.getElementById("playBtn");
     const prevBtn = document.getElementById("prevBtn");
     const nextBtn = document.getElementById("nextBtn");
@@ -909,7 +1018,6 @@
       const dur = Number(scene.dataset.duration || 0);
 
       if(vids.length){
-        // autoplay all (muted), advance after ALL end
         setIndeterminate(vids.length > 1 ? "Videos" : "Video");
 
         let endedCount = 0;
@@ -918,7 +1026,6 @@
           if(playing && endedCount >= vids.length) goNext();
         };
 
-        // start timer using max remaining duration if available
         const tryStartTimerFromDurations = () => {
           if(!playing) return;
           let maxRemain = 0;
@@ -935,7 +1042,6 @@
         for(const v of vids){
           try{ v.currentTime = 0; }catch(e){}
           v.muted = true;
-
           v.onended = markEnded;
           v.onplay = tryStartTimerFromDurations;
           v.ontimeupdate = () => { if(playing && !v.paused) tryStartTimerFromDurations(); };
@@ -947,7 +1053,6 @@
           }
         }
 
-        // if durations are known quickly
         setTimeout(tryStartTimerFromDurations, 120);
         return;
       }
